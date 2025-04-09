@@ -1,12 +1,12 @@
 # The hodgepodge for WS2812B RGB LED panel
 Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using MicroPython.
 
-## Зміст  
+## Content  
 
-| Файл | Призначення |
+| File | Purpose |
 | --- | --- |
-| spectrum_to_neo_512_16_v2.py | Основний код для ESP-WROOM-32 |
-| spectrum_to_neo_512_16_Pi.py | Основний код для Pi Pico with RP2040 |
-| neo_matrix.py | Модуль для роботи з WS2816 LED панелями |
-| algorithms_fft.py | Модуль з функціями для FFT [algorithms](https://github.com/peterhinch/micropython-fourier)  |
-| RPI_PICO.uf2 | MicroPython firmware with ulab included for Pi Pico |
+| Maze / maze_generator.py | Module for creating mazes |
+| Maze / graph.py | Contains the Graph class as an undirected graph |
+| Maze / itertools.py | Contains functions creating iterators |
+| Maze / maze.py | Main code that implementation of finding a passage in a maze |
+| Maze / maze_1.txt | Contains the coordinates of the test maze  |
