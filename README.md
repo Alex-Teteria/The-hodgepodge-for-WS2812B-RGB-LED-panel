@@ -12,4 +12,4 @@ Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using Mi
 |  | maze.py | Main code that implementation of finding a passage in a maze |
 |  | maze_1.txt | Contains the coordinates of the test maze  |
 ||  |  |
-| spiral.py | ------- | Spiral effect on LED matrix  |
+| spiral.py |  | Spiral effect on LED matrix  |
