@@ -75,7 +75,3 @@ if __name__ == '__main__':
     
     while True:
         main_run()
-
-# to clean the led-matrix:
-# clean_up()
-    
