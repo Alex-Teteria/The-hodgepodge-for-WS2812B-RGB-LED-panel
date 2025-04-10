@@ -13,3 +13,7 @@ Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using Mi
 |  | maze_1.txt | Contains the coordinates of the test maze  |
 ||  |  |
 | spiral.py |  | Spiral effect on LED matrix  |
+||  |  |
+| Ghost |  | The folder containing the main program code and auxiliary modules for visualizing moving ghost body pixels. The ghost's color changes depending on the ambient temperature, and its speed of movement depends on pressure. |
+|  | maze.py | Main code that implementation of visualizing moving ghost. A BME280 type sensor was used to measure temperature and pressure |
+|  | ghost_neo.py | Contains the Ghost class - ghost body pixels for WS2816, 16x16 rgb LEDs |
