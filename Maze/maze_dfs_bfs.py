@@ -8,7 +8,6 @@
 # The second point chooses the route to the finish point in the maze
 # first point using the BFS algorithm
 # second point using the DFS algorithm
-# but it is simply an implementation of the depth-first search (DFS) algorithm
 # ----------------------------------------------------------------------------
 # Author: Alex Teteria
 # v0.4
