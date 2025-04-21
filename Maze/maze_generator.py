@@ -6,8 +6,8 @@
 # for implementation on RGB LED panel type WS2816, 16x16 LEDs
 # ----------------------------------------------------------------
 # Author: Alex Teteria
-# v0.1
-# 04.04.2025
+# v0.2
+# 06.04.2025
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 
@@ -15,6 +15,7 @@ import random
 from neopixel import NeoPixel as np
 from graph import Graph
 from itertools import combinations
+
 
 n = 16        # number of row
 m = 16        # number of col
@@ -122,24 +123,42 @@ def break_wall(path, grid, edges, vertices):
         if (x, y) in grid:
             grid.remove((x, y))
      
-def create_start_finish(grid):
+def create_start_finish(grid, start_en=True, finish_en=True):
     '''Створює вхід та вихід з лабіринта
+       вхід - ліворуч, вихід - праворуч
     '''
-    i = random.randint(1, n-2)
-    while (i, 1) in grid:
+    start, finish = None, None
+    if start_en:
         i = random.randint(1, n-2)
-    start = i, 0
-    grid.remove(start)
+        while (i, 1) in grid:
+            i = random.randint(1, n-2)
+        start = i, 0
+        grid.remove(start)
     
-    i = random.randint(1, n-2)
-    while (i, m-2) in grid:
+    if finish_en:
         i = random.randint(1, n-2)
-    finish = i, m-1
-    grid.remove(finish)
-    
+        while (i, m-2) in grid:
+            i = random.randint(1, n-2)
+        finish = i, m-1
+        grid.remove(finish)
+        
     return start, finish
-    
-def build_maze(n=16, m=16, num_random_hole=30):
+
+
+def build_border(n, m):
+    '''вертає множину координат прямокутника (n x m)
+       та координати випадкових точок на лівій і правій стороні
+       Створено для перевірки роботи на порожньому лабіринті 
+    '''
+    border = {(i, j) for i in (0, n-1) for j in range(m)}
+    border.update({(i, j) for i in range(1, n-1) for j in (0, m-1)})
+    i_start = random.randint(1, n-2)
+    i_finish = random.randint(1, n-2)
+    j_finish = random.randint(1, m-2)
+    border.remove((i_start, 0))
+    return border, (i_start, 0), (i_finish, j_finish)
+
+def build_maze(n=16, m=16, num_random_hole=30, start_en=True, finish_en=True):
     # створюємо заготовку лабіринта
     grid = build_wall(n, m, num_random_hole)
     
@@ -158,7 +177,7 @@ def build_maze(n=16, m=16, num_random_hole=30):
     #        або = 4, коли вершини розміщені через клітинку 
     edges = build_edges(components, vertices)
     graph = Graph(components, edges)
-    
+        
     # будуємо остовне дерево
     path = graph.dfs_tree(0)
     
@@ -166,7 +185,9 @@ def build_maze(n=16, m=16, num_random_hole=30):
     break_wall(path, grid, edges, vertices)
     
     # Створюємо вхід та вихід з лабіринта
-    start, finish = create_start_finish(grid)
+    start, finish = None, None
+    if start_en or finish_en:
+        start, finish = create_start_finish(grid, start_en, finish_en)
     
     return grid, start, finish
     
@@ -176,15 +197,14 @@ if __name__ == '__main__':
     
     pix = np(machine.Pin(neo_pin), n * m)
     
-    maze, start, finish = build_maze()
-    
+    maze, start, finish = build_maze(num_random_hole=8, start_en=True, finish_en=True)
     for ind in maze:
         pix[coord_to_pix(*ind)] = brown
     
     # -----------------------------------------------
     # перевіряємо на зв'язність утворений граф
     '''
-    vertices = {coord_to_pix(i, j): (i, j) for i in range(n) for j in range(m) if (i, j) not in grid}
+    vertices = {coord_to_pix(i, j): (i, j) for i in range(n) for j in range(m) if (i, j) not in maze}
     graph = Graph(vertices)
     
     # знаходимо компоненти зв'язності графа
@@ -202,3 +222,11 @@ if __name__ == '__main__':
     for i in range(len(pix)):
         pix[i] = nothing
     
+    # pix.write()
+    
+    
+    
+        
+        
+    
+
