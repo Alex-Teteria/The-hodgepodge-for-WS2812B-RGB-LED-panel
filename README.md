@@ -5,12 +5,16 @@ Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using Mi
 
 | File | Contain | Purpose |
 | --- |  ---: |  --- |
-| Maze |  |The folder containing the main program code and auxiliary modules for visualizing path finding in a maze. It is now common to say that this is the result of AI :smile:, but it is simply an implementation of the depth-first search (DFS) algorithm. It looks something like this: [AI finds its way through a maze](https://youtube.com/shorts/KfYbfn5_Zk4) |
+| Maze |  |The folder containing the main program codes and auxiliary modules for visualizing path finding in a maze. It is now common to say that this is the result of AI :smile:, but it is simply an implementation of the depth-first search (DFS) or breadth-first search (BFS) algorithm. It looks something like this: [AI finds its way through a maze](https://youtube.com/shorts/KfYbfn5_Zk4) |
 |  | maze_generator.py | Module for creating random mazes |
 |  |graph.py | Contains the Graph class as an undirected graph |
 |  | itertools.py | Contains functions creating iterators |
-|  | maze.py | Main code that implementation of finding a passage in a maze |
+|  | maze.py | Main code that implementation of finding a passage in a maze. Switching search modes (DFS or BFS) is done by the button |
 |  | maze_1.txt | Contains the coordinates of the test maze  |
+|  | maze_dfs.py | Implementation of finding a passage in a maze by depth-first search (DFS) algorithm |
+|  | maze_bfs.py | Implementation of finding a passage in a maze by breadth-first search (DFS) algorithm |
+|  | maze_dfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the finish point in the maze. First point using the BFS algorithm. Second point using the DFS algorithm |
+|  | maze_bfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the farthest point in the maze so as not to intersect with the first point. This repeats in a loop until the first point covers the second or until the allotted time runs out |
 ||  |  |
 | spiral.py |  | Spiral effect on LED matrix  |
 ||  |  |
