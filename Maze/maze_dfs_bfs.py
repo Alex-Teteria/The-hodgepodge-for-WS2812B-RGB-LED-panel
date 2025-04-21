@@ -2,7 +2,12 @@
 # Implementation of finding a passage in a maze
 # Result output on an LED panel type WS2816, 16x16 LEDs
 # ----------------------------------------------------------------------------
-# It is now common to say that this is the result of AI :),
+# Route search simulation
+# One point catches up with another
+# The first point chooses the shortest route to the second point it is trying to cover
+# The second point chooses the route to the finish point in the maze
+# first point using the BFS algorithm
+# second point using the DFS algorithm
 # but it is simply an implementation of the depth-first search (DFS) algorithm
 # ----------------------------------------------------------------------------
 # Author: Alex Teteria
