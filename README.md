@@ -14,7 +14,7 @@ Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using Mi
 |  | maze_dfs.py | Implementation of finding a passage in a maze by depth-first search (DFS) algorithm |
 |  | maze_bfs.py | Implementation of finding a passage in a maze by breadth-first search (DFS) algorithm |
 |  | maze_dfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the finish point in the maze. First point using the BFS algorithm. Second point using the DFS algorithm |
-|  | maze_bfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the farthest point in the maze so as not to intersect with the first point. This repeats in a loop until the first point covers the second or until the allotted time runs out |
+|  | maze_bfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the farthest point in the maze so as not to intersect with the first point. This repeats in a loop until the first point covers the second or until the allotted time runs out. https://www.youtube.com/watch?v=QLT3La0Wb3k |
 ||  |  |
 | spiral.py |  | Spiral effect on LED matrix  |
 ||  |  |
