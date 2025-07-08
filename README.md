@@ -16,7 +16,7 @@ Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using Mi
 |  | maze_dfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the finish point in the maze. First point using the BFS algorithm. Second point using the DFS algorithm |
 |  | maze_bfs_bfs.py | Route search simulation. One point catches up with another. The first point chooses the shortest route to the second point it is trying to cover. The second point chooses the route to the farthest point in the maze so as not to intersect with the first point. This repeats in a loop until the first point covers the second or until the allotted time runs out. https://www.youtube.com/watch?v=QLT3La0Wb3k |
 ||  |  |
-| spiral.py |  | Spiral effect on LED matrix  |
+| spiral.py |  | Spiral effect on LED matrix https://youtu.be/DPfMtILU69g |
 ||  |  |
 | Ghost |  | The folder containing the main program code and auxiliary modules for visualizing moving ghost body pixels. The ghost's color changes depending on the ambient temperature, and its speed of movement depends on pressure. |
 |  | ghost_microwave_sensor.py | Main code that implementation of visualizing moving ghost. The ghost's color and its speed changes depending on the distance to the person/object present. A sensor of the HLK-LD2410 type was used to measure the distance. The sensor connection diagram is shown below.|
