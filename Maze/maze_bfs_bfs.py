@@ -15,16 +15,16 @@
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 
+import machine
 import time, random
 from neopixel import NeoPixel as np
 from graph import Graph
 import maze_generator
-from maze_bfs import find_path_bfs
 
 
 n = 16         # number of row
 m = 16         # number of col
-neo_pin = 28   # pin number to the LEDs
+neo_pin = 20   # pin number to the LEDs
 speed = 40     # LED switching delay
 num_cycle = 8  # number of cyclic repeat of route
 # timer time (mc), after which the range of random paths selection changes
@@ -53,8 +53,6 @@ color_2 = green  # the point that catches up
 
 # creating an instance of a class NeoPixel
 pix = np(machine.Pin(neo_pin), n * m)
-# operating mode switching button
-# btn = machine.Pin(15, machine.Pin.IN, machine.Pin.PULL_UP)
 
 
 def coord_to_pix(i, j):
@@ -127,6 +125,7 @@ def find_path(graph, start, path_2):
 
 def write_path(graph, start_1, start_2):
     cnt_cycle = 0
+    path_2_prev = []
     while start_1 != start_2 and not flag_exit:
         cnt_cycle += 1
         if cnt_cycle > num_cycle:
@@ -190,12 +189,12 @@ def clear():
 def f_timer_1(t):
     global limit_ind
     limit_ind = next_num_random_path
-    print('!')
+    # print('!')
     
 def f_timer_2(t):
     global flag_exit
     flag_exit = True
-    print('!!')    
+    # print('!!')    
 
 if __name__ == '__main__':
         
@@ -228,4 +227,3 @@ if __name__ == '__main__':
         
         main_run()
             
-    

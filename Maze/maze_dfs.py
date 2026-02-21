@@ -6,11 +6,12 @@
 # but it is simply an implementation of the depth-first search (DFS) algorithm
 # ----------------------------------------------------------------------------
 # Author: Alex Teteria
-# v0.4
-# 16.04.2025
+# v2.0
+# 20.02.2026
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 
+import machine
 import time, random
 from neopixel import NeoPixel as np
 from graph import Graph
@@ -19,8 +20,8 @@ import maze_generator
 
 n = 16       # number of row
 m = 16       # number of col
-neo_pin = 28 # pin number to the LEDs
-speed = 100  # LED switching delay
+neo_pin = 20 # pin number to the LEDs
+speed = 90  # LED switching delay
 show_path = True
 
 green = 0, 24, 0
@@ -39,9 +40,6 @@ brown = 18, 4, 0
 
 # creating an instance of a class NeoPixel
 pix = np(machine.Pin(neo_pin), n * m)
-# operating mode switching button
-# btn = machine.Pin(15, machine.Pin.IN, machine.Pin.PULL_UP)
-
 
 def coord_to_pix(i, j):
         '''
@@ -61,61 +59,6 @@ def read_file(name):
             x, y = line.rstrip().split()
             vertices[coord_to_pix(int(x), int(y))] = int(x), int(y)
     return vertices
-
-
-def find_path(graph, tour, *nodes):
-    '''Вертає повний шлях до вершини vertex як список ребер, з урахуванням усіх повернень назад
-       graph - граф
-       tour - результат обходу графа алгоритмом DFS, словник виду - {вершина: попередня вершина, ...}
-    '''
-    *_, v = nodes # берем останню вершину із кортежу nodes
-    G = graph.G          # словник - списки суміжностей
-    edges = graph.edges  # ребра
-    path = []
-    all_path_back = []
-    while tour.get(v) is not None:
-        if tour[v] in G[v]:
-            path.append((tour[v], v))
-            v = tour[v]
-        else:  # маршрути назад
-            path.append(())  # в місця, де розрив маршруту, тобто шлях назад, вставляємо як маркери порожні ребра
-            path_back = find_path_back(G, tour, (v, tour[v]))  # знаходимо маршрут назад між вершинами v та tour[v]
-            all_path_back.append(path_back)  # додаємо цей маршрут у список усіх зворотніх маршрутів
-            v = tour[v]
-    path = insert_path_back(path[::-1], all_path_back, edges)
-    
-    return path
-
-def insert_path_back(path, path_back, edges):
-    edge_visited = set()    
-    while path_back:
-        index_insert = path.index(())
-        path_insert = path_back.pop()
-        
-        # якщо вже там були, то викидуємо з маршруту
-        path_insert = [edge for edge in path_insert if \
-                       edge not in edge_visited and \
-                       not edge_visited.add(edge)]
-        
-        # викидуємо з маршруту неіснуючі ребра та замикаємо в тому місці маршрут
-        for i in range(len(path_insert)):
-            u, v = path_insert[i]
-            if (u, v) not in edges and (v, u) not in edges:
-                path_insert[i] = (u, path_insert[i+1][0])
-                
-        path = path[:index_insert] + path_insert + path[index_insert+1:]
-    return path
-
-
-def find_path_back(G, tour, t):
-    prev, vertex = t
-    path = []
-    v = vertex
-    while v not in G[prev]:
-        path.append((v, tour[v]))
-        v = tour[v]
-    path.append((v, prev))    
-    return path 
 
 
 def light_path(path):
@@ -142,21 +85,13 @@ def write_path_neo(path, show_path=True):
     pix.write()
     time.sleep_ms(400)
 
-def find_vertex(vertices, coord):
-    '''Вертає вершину за її координатами,
-       якщо такої немає, то вертає None
-    '''
-    for key, val in vertices.items():
-        if val == coord:
-            return key
-        
 
 def main_run():
-       
-    start_vertex = find_vertex(vertices, coord_start)
-    end_vertex = find_vertex(vertices, coord_end)
+
+    start_vertex = coord_to_pix(*coord_start)
+    end_vertex = coord_to_pix(*coord_end)
     
-   # виводимо лабіринт
+    # виводимо лабіринт
     for coord in maze:
         pix[coord_to_pix(*coord)] = brown
     pix.write()
@@ -170,9 +105,9 @@ def main_run():
     graph = Graph(vertices)
     
     # знаходимо шлях
-    dfs = graph.dfs(start_vertex)
-    path = find_path(graph, dfs, end_vertex)
-    
+    path = graph.dfs_walk_edges(start_vertex, end_vertex)
+    assert path, "Path is empty: check start/finish and maze connectivity"
+        
     # виводимо шлях
     write_path_neo(path, show_path=show_path)
     

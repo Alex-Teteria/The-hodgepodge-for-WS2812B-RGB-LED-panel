@@ -2,33 +2,85 @@
 # Contains the Graph class as an undirected graph
 # ----------------------------------------------------------------
 # Author: Alex Teteria
-# v0.4
-# 17.04.2025
+# v2.0
+# 19.02.2026
+"""
+1. Оптимізовано побудову ребер build_edges()
+  - Було: перебір усіх пар вершин через itertools.combinations → O(V²).
+  - Стало: індекс (x, y) -> id і перевірка лише 2 сусідів (вправо/вниз) → O(V).
+  - Причина: суміжність = відстань 1 на ґратці (4-сусідство),
+    тому немає сенсу перевіряти всі пари.
+
+2. Зроблено одночасну побудову edges і списків суміжності G
+  - Додано build_edges_and_adjacency(), щоб не будувати спочатку ребра, а потім ще раз проходити по них для G.
+  - Це швидше і логічно узгоджує edges та G.
+
+3. Виправлено dfs() на “класичний” DFS (parent-map)
+  - Тепер dfs(start) повертає {vertex: parent} де parent — реальний “батько” в дереві DFS.
+  - Це робить результат DFS коректним як структура для дерева/відновлення шляху в DFS-дереві.
+
+4. Додано окремий метод для анімації “шляху з поверненням назад”
+  - dfs_walk_edges() повертає послідовність реальних кроків по ребрах (включно з поверненнями назад).
+  - Це розділило дві різні задачі:
+     “DFS як алгоритм” (dfs)
+     “DFS як маршрут руху” для візуалізації (dfs_walk_edges)
+
+5. Виправлено bfs() логічно (старт)
+  - Старт одразу позначається як “відвіданий”, щоб він не потрапляв у чергу повторно через сусідів.
+  - Повернення формату з None для старту збережено.
+
+6. Покращено реалізацію черги в bfs()
+  - Замість list.pop(0) (зсув елементів) використано список + індекс head.
+  - Це повернуло BFS до правильної асимптотики для списків суміжності: Θ(V + E).
+
+7. Виправлено dfs_tree()
+  - Раніше воно намагалось вгадувати ребра через prev.
+  - Тепер будує остовне дерево правильно: просто бере ребра (parent[v], v) з результату класичного dfs().
+
+8. Компоненти зв’язності лишилися коректними
+  - _find_components_dfs() як працював по множині ключів DFS, так і працює.
+  - _find_components_uf() залишився без змін і використовує edges/UnionFind.
+
+9. Покращено реалізацію черги в bfs_distance()
+  - Замість list.pop(0) (зсув елементів) використано список + індекс head.
+"""
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 
 import itertools
-from utils import UnionFind
+from utils.graph_utils import UnionFind
 
 class Graph():
     
     def __init__(self, vertices, edges=None):
         self.vertices = vertices
-        self.edges = edges if edges is not None else self.build_edges()
-        self.G = self.build_adjacency_lists()
-            
-    def if_adjacency(self, u, v):
-        x1, y1 = self.vertices[u]
-        x2, y2 = self.vertices[v]
-        # вершини будуть суміжними, коли евклідова відстань між ними = 1
-        dist = (x1 - x2)**2 + (y1 - y2)**2
-        return dist == 1 
+        if edges is None:
+            self.edges, self.G = self.build_edges_and_adjacency()
+        else:
+            self.edges = edges
+            self.G = self.build_adjacency_lists()
 
     def build_edges(self):
-        edges = {(u, v) for u, v in itertools.combinations(self.vertices, 2) \
-                 if self.if_adjacency(u, v)}
-        return edges
+        '''Оптимізований build_edges() за O(V)
+        '''
+        # (x, y) -> vertex_id
+        coord2v = {}
+        for v, (x, y) in self.vertices.items():
+            coord2v[(x, y)] = v
 
+        edges = set()
+
+        for v, (x, y) in self.vertices.items():
+            # перевіряємо тільки вправо і вниз, щоб кожне ребро додати один раз
+            v2 = coord2v.get((x + 1, y))
+            if v2 is not None:
+                edges.add((v, v2) if v < v2 else (v2, v))
+
+            v2 = coord2v.get((x, y + 1))
+            if v2 is not None:
+                edges.add((v, v2) if v < v2 else (v2, v))
+        return edges
+    
     def build_adjacency_lists(self):
         '''Створює і вертає граф як списки суміжностей
            Списки суміжостей - словник виду
@@ -39,46 +91,102 @@ class Graph():
             G[u].add(v)
             G[v].add(u)
         return G
+    
+    def build_edges_and_adjacency(self):
+        # (x, y) -> vertex_id
+        coord2v = {}
+        for v, (x, y) in self.vertices.items():
+            coord2v[(x, y)] = v
 
+        G = {v: set() for v in self.vertices}
+        edges = set()
+
+        for v, (x, y) in self.vertices.items():
+            # вправо
+            v2 = coord2v.get((x + 1, y))
+            if v2 is not None:
+                a, b = (v, v2) if v < v2 else (v2, v)
+                edges.add((a, b))
+                G[v].add(v2)
+                G[v2].add(v)
+
+            # вниз
+            v2 = coord2v.get((x, y + 1))
+            if v2 is not None:
+                a, b = (v, v2) if v < v2 else (v2, v)
+                edges.add((a, b))
+                G[v].add(v2)
+                G[v2].add(v)
+
+        return edges, G
+        
     def dfs(self, start):
-        '''Нерекурсивна реалізація алгоритму пошуку вглибину
-           Обхід всіх вузлів 
-           G - граф як словник списків суміжностей
-           start - вершина з якої стартуємо
-        '''
-        # словник обходу - вершина: попередня вершина, з якої прийшли
-        dfs_dict = {}
-        prev = None  # попередня вершина
-        # Створюємо стек
+        parent = {start: None}
         stack = [start]
-        while stack:                # поки стек не порожній
+        while stack:
             v = stack.pop()
-            if v not in dfs_dict:   # якщо вершина ще не розглянута
-                dfs_dict[v] = prev  # заносимо вершину в словник та присвоюємо їй попереднє значення
-                prev = v
-                stack.extend(self.G[v])  # додаємо вершини суміжні з v в стек
+            for u in self.G[v]:
+                if u not in parent:
+                    parent[u] = v
+                    stack.append(u)
+        return parent
 
-        return dfs_dict
+    def dfs_walk_edges(self, start, finish=None):
+        """
+        Повертає маршрут обходу DFS як список ребер (кожне ребро — реальний крок по графу),
+        включно з поверненнями назад. Якщо задано finish — зупиняється, коли його досягнуто.
+        """
+        visited = set([start])
+        stack = [(start, iter(self.G[start]))]  # (вершина, ітератор по сусідах)
+        walk = [start]                          # послідовність відвіданих кроків (вершин)
 
+        if finish is not None and start == finish:
+            return []
+
+        while stack:
+            v, it = stack[-1]
+            try:
+                u = next(it)
+                if u not in visited:
+                    visited.add(u)
+                    walk.append(u)              # рух вперед v -> u
+                    if finish is not None and u == finish:
+                        break
+                    stack.append((u, iter(self.G[u])))
+            except StopIteration:
+                stack.pop()
+                if stack:
+                    # повернення назад до батька
+                    walk.append(stack[-1][0])
+
+        # перетворюємо walk вершин у список ребер
+        edges = []
+        for i in range(len(walk) - 1):
+            edges.append((walk[i], walk[i + 1]))
+        return edges
+ 
     def bfs(self, start):
         '''Реалізація алгоритму пошуку вширину
            start - вершина з якої стартуємо
+           асимптотика BFS як і повинно бути на списках суміжності: Θ(V + E)
+           (список + pop(0)) замінили на (список + head)
         '''
-        # словник обходу - вершина: попередня вершина
-        bfs = {vertex: None for vertex in self.vertices}
-        
-        # Створюємо чергу
+        parent = {v: None for v in self.vertices}
+        parent[start] = start  # маркер "відвідано"
+
         queue = [start]
-               
-        while queue:                 # поки черга не порожня
-            v = queue.pop(0)         # беремо наступну вершину з черги 
-            for u in self.G[v]:      # ітерація по списку суміжностей для вершини v
-                if bfs[u] is None:   # якщо вершина ще не розглянута
-                    bfs[u] = v       # присвоюємо вершині значення попередньої вершини
-                    queue.append(u)  # додаємо вершину в кінець черги
-        #bfs[start] = None
-        return bfs
-    
+        head = 0
+        while head < len(queue):
+            v = queue[head]
+            head += 1
+            for u in self.G[v]:
+                if parent[u] is None:
+                    parent[u] = v
+                    queue.append(u)
+
+        parent[start] = None
+        return parent
+
     def bfs_distance(self, start):
         '''Пошук усіх найкоротших шляхів від вершини start за допомогою BFS
         '''
@@ -86,18 +194,19 @@ class Graph():
         dist = {vertex: None for vertex in self.G}
         # словник попередніх вершин під час обходу вершин - вершина: попередня вершина
         prev = {start: None}
-        dist[start] = 0  # відстань до вершини з якої стартуємо
-        # Створюємо чергу
-        queue = []
-        queue.append(start)
-        while queue:                       # поки черга не порожня
-            v = queue.pop(0)               # беремо наступну вершину з черги 
-            for u in self.G[v]:            # ітерація по списку суміжностей для вершини v
-                if dist[u] is None:        # якщо вершина ще не розглянута
-                    dist[u] = dist[v] + 1  
+        dist[start] = 0
+
+        queue = [start]  # створюємо чергу
+        head = 0
+        while head < len(queue):
+            v = queue[head]
+            head += 1
+            for u in self.G[v]:
+                if dist[u] is None:
+                    dist[u] = dist[v] + 1
                     prev[u] = v
-                    queue.append(u)    # додаємо вершину в кінець черги
-        return dist, prev    
+                    queue.append(u)
+        return dist, prev
 
     def _find_components_dfs(self):
         # знаходимо компоненти зв'язності графа
@@ -144,29 +253,18 @@ class Graph():
             print('Error! Unknown method')
     
     def dfs_tree(self, start):
-        '''Вертає остовне дерево (spanning tree) графа як список ребер
-           для побудови остовного дерева використано алгоритм DFS
-        '''
-        visited = set()
-        path = []
-        prev = start
-        stack = [start]
-        while stack:                     # поки стек не порожній
-            v = stack.pop()
-            if v not in visited:         # якщо вершина ще не розглянута
-                visited.add(v)
-                if v in self.G[prev]:    # якщо існує ребро
-                    path.append((prev, v))
-                else:                    # ребро не існує, тобто повернення назад в маршруті
-                    for el in self.G[v]: # додаємо ребро із списка суміжностей з вершин, які вже дослідили
-                        if el in visited:
-                            path.append((el, v))
-                            break
-                prev = v
-                stack.extend(self.G[v])  # додаємо усі вершини суміжні з v в стек
-              
-        return path
-    
+        """
+        Повертає остовне дерево (spanning tree) компоненти, досяжної зі start,
+        як список ребер (parent, vertex).
+        Працює з dfs(), який повертає parent-map: {v: parent_v}.
+        """
+        parent = self.dfs(start)
+        tree = []
+        for v, p in parent.items():
+            if p is not None:
+                tree.append((p, v))
+        return tree
+
     def find_path(self, start, finish, prev=None):
         '''повертає найкоротший маршрут від вершини start до вершини finish
            prev - словник попередніх вершин, результат bfs_distance() {вершина: попередня вершина}

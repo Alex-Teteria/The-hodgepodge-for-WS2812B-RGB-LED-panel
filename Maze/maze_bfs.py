@@ -6,8 +6,8 @@
 # Implementation of the Breadth First Search (BFS) algorithm
 # ----------------------------------------------------------------------------
 # Author: Alex Teteria
-# v0.4
-# 16.04.2025
+# v2.0
+# 21.02.2026
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 
@@ -20,7 +20,7 @@ import maze_generator
 
 n = 16       # number of row
 m = 16       # number of col
-neo_pin = 28 # pin number to the LEDs
+neo_pin = 20 # pin number to the LEDs
 speed = 100  # LED switching delay
 
 green = 0, 24, 0
@@ -39,9 +39,6 @@ brown = 18, 4, 0
 
 # creating an instance of a class NeoPixel
 pix = np(machine.Pin(neo_pin), n * m)
-# operating mode switching button
-# btn = machine.Pin(15, machine.Pin.IN, machine.Pin.PULL_UP)
-
 
 def coord_to_pix(i, j):
         '''
@@ -87,39 +84,22 @@ def write_path_neo(path, show_path=True):
     pix.write()
     time.sleep_ms(400)
 
-def find_vertex(vertices, coord):
-    '''Вертає вершину за її координатами,
-       якщо такої немає, то вертає None
-    '''
-    for key, val in vertices.items():
-        if val == coord:
-            return key
-        
-def find_path_bfs(graph, tour, start, end):
-    '''Вертає повний шлях до вершини end як список ребер
-       graph - граф
-       tour - результат обходу графа алгоритмом BFS, словник виду - {вершина: попередня вершина, ...}
-    '''
-    G = graph.G          # словник - списки суміжностей
-    edges = graph.edges  # ребра
+
+def find_path_bfs(tour, start, end):
     path = []
     v = end
-    while tour.get(v) != start: # поки не дійшли до стартової вершини
-        if tour[v] in G[v]:
-            path.append((tour[v], v))
-            v = tour[v]
-        else:
-            print('Error!')
-            v = tour[v]
-    path.append((start, v))        
-    return path[::-1]
+    while v != start:
+        p = tour.get(v)
+        if p is None:
+            return []  # або raise/print
+        path.append((p, v))
+        v = p
+    path.reverse()
+    return path
 
 
 def main_run():
-    '''   
-    start_vertex = find_vertex(vertices, coord_start)
-    end_vertex = find_vertex(vertices, coord_end)
-    '''
+
    # виводимо лабіринт
     for coord in maze:
         pix[coord_to_pix(*coord)] = brown
@@ -139,7 +119,8 @@ def main_run():
 
     # знаходимо шлях
     bfs = graph.bfs(start_vertex)
-    path = find_path_bfs(graph, bfs, start_vertex, end_vertex)
+    path = find_path_bfs(bfs, start_vertex, end_vertex)
+    assert path, "Empty path: maze connectivity violated"
     
     # виводимо шлях
     write_path_neo(path, show_path=False)

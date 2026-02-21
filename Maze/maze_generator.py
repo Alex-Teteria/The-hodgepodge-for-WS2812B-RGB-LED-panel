@@ -6,10 +6,68 @@
 # for implementation on RGB LED panel type WS2816, 16x16 LEDs
 # ----------------------------------------------------------------
 # Author: Alex Teteria
-# v0.2
-# 06.04.2025
+# v2.0
+# 20.02.2026
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
+
+"""
+Виправлені баги:
+  - жорстко прошиті числа 15 замінено на n-1 та m-1;
+  - build_grid() — помилка для прямокутної матриці (було n == m)
+  - змінено random_sample()
+  - graph = Graph(components, edges) виправлено на graph = Graph(components, set(edges))
+
+Деякі роз'яснення щодо способу побудови лабіринта
+1. Будуються стіни як суцільні горизонтальні та вертикальні лінії (плюс рамка),
+товщина стіни — 1 клітинка.
+Це розбиває поле на “кімнати/комірки” (прямокутні області прохідних клітин),
+які утворюють зв’язну ґратку по сусідству (кімната має сусідів через спільну стіну).
+2. Далі, випадковим чином, утворюємо “дірки” у стінах → це об’єднує деякі кімнати в більші компоненти.
+3. Будуємо граф з точoк, що не увійшли до стін лабіринту
+   - Створюємо словник вершин:
+     vertices = {vertex1: (i1, j1), vertex2: (i2, j2), ...}
+   - будуємо граф:
+     graph = Graph(vertices)
+4. Знаходяться компоненти зв’язності (components) графа який утворився.
+5. Будуємо граф між компонентами зв'язності, де
+    вершини - компоненти
+    ребра - коли відстань між компонентами = 2 (коли якісь вершини торкаються кутами),
+            або = 4, коли вершини розміщені через клітинку 
+   Ключове: для будь-яких двох “сусідніх кімнат” між ними є стіна товщиною 1,
+   отже існують дві прохідні клітинки по різні боки стіни на відстані dist==4
+   (або dist==2 для кутового випадку),
+   і тому функції build_edges / find_neighbor таке ребро знайдуть.
+   Тому граф компонент буде зв’язаним (один компонент зв'язності).
+6. Будуємо остовне дерево
+    path = graph.dfs_tree(0)
+   За умов (п.5) dfs_tree(0) охопить усі компоненти.
+7. Пробиваємо перегородки в стінах в місцях ребер остовного дерева
+    break_wall(path, grid, edges, vertices)
+8. Створюємо вхід та вихід з лабіринта
+
+Доведення можливості побудови прохідного лабіринту:
+   Повинна бути гарантія того, що dfs_tree(0) на графі компонент охоплював усі компоненти
+   (граф компонент зв’язний).
+   1) Умови, за яких гарантія виконується:
+   - Стіни мають товщину 1 клітинку (перегородка — один ряд/стовпчик клітин).
+   - Тому будь-які дві області (компоненти прохідних клітин), які
+     розділені стіною, мають пару вершин по різні боки стіни, між якими:
+     dist == 4 (через одну клітинку по горизонталі/вертикалі), або
+     dist == 2 (діагональний дотик “кутами”, якщо це враховується).
+   2) Функції build_edges/find_neighbor додають ребро між компонентами,
+      якщо існує хоча б одна така пара вершин з dist ∈ {2,4}.
+   3) “Пробиття отворів” (видалення стін) лише об’єднує компоненти
+      і не може зробити граф незв’язним (це еквівалент “контракції” у зв’язному графі).
+
+Висновок: граф компонент зв’язний ⇒ існує остовне дерево ⇒
+          ⇒ dfs_tree(0) охоплює всі компоненти ⇒
+          ⇒ після break_wall() лабіринт стає зв’язним.
+
+Зауваження:
+Якщо змінювати генератор (товщина стін, правила сусідства/пробиття),
+ці умови треба перевірити заново.
+"""
 
 import random
 from neopixel import NeoPixel as np
@@ -19,7 +77,7 @@ from itertools import combinations
 
 n = 16        # number of row
 m = 16        # number of col
-neo_pin = 28  # pin to LED matrix
+neo_pin = 20  # pin to LED matrix
 
 brown = 20, 4, 0
 green = 0, 24, 0
@@ -35,28 +93,35 @@ def coord_to_pix(i, j):
 def build_grid(n, m):
     grid = []
     # build horizontal lines
-    num = random.randint(1, 13)
+    num = random.randint(1, n-3)
     for i in range(0, n, 2):
         ind_i = i + 1 if i > num else i
         for j in range(m):
             grid.append((ind_i, j))
     # build vertical lines
-    num = random.randint(1, 13)
-    for j in range(0, n, 2):
+    num = random.randint(1, m-3)
+    for j in range(0, m, 2):
         ind_j = j + 1 if j > num else j
         for i in range(n):
             grid.append((i, ind_j))
     
     return set(grid)
 
-def random_sample(max_num, num):
-    l = []
-    while len(l) < num:
-        n = random.randint(0, max_num)
-        while n in l:
-            n = random.randint(0, max_num)
-        l.append(n)
-    return l
+
+def random_sample(max_index, k):
+    """
+    Повертає k унікальних випадкових чисел у діапазоні [0 .. max_index].
+    """
+    count = max_index + 1
+    if k >= count:
+        # повертаємо всі індекси (у довільному порядку)
+        return list(range(count))
+
+    picked = set()
+    while len(picked) < k:
+        picked.add(random.randint(0, max_index))
+    return list(picked)
+
 
 def build_wall(n, m, num_random_hole):
     '''вертає множину випадкових координат на площині розміром n x m
@@ -68,7 +133,7 @@ def build_wall(n, m, num_random_hole):
     '''
     grid = build_grid(n, m)
     border = set()
-    grid_internal = [(i, j) for i, j in grid if (i != 0 and i != 15 and j != 0 and j != 15) \
+    grid_internal = [(i, j) for i, j in grid if (i != 0 and i != n-1 and j != 0 and j != m-1) \
                      or border.add((i, j))]
     random_index = random_sample(len(grid_internal), num_random_hole)
     grid_internal = {grid_internal[i] for i in range(len(grid_internal)) if i not in random_index}
@@ -100,7 +165,6 @@ def build_edges(components, vertices):
         if edge:
             edges[(a, b)] = edge
     return edges
-
     
 def break_wall(path, grid, edges, vertices):
     '''пробиваємо перегородки в сітці в місцях ребер, які беремо з path
@@ -176,7 +240,7 @@ def build_maze(n=16, m=16, num_random_hole=30, start_en=True, finish_en=True):
     # ребра - коли відстань між компонентами = 2 (коли якісь вершини торкаються кутами),
     #        або = 4, коли вершини розміщені через клітинку 
     edges = build_edges(components, vertices)
-    graph = Graph(components, edges)
+    graph = Graph(components, set(edges))
         
     # будуємо остовне дерево
     path = graph.dfs_tree(0)
@@ -203,7 +267,7 @@ if __name__ == '__main__':
     
     # -----------------------------------------------
     # перевіряємо на зв'язність утворений граф
-    '''
+    
     vertices = {coord_to_pix(i, j): (i, j) for i in range(n) for j in range(m) if (i, j) not in maze}
     graph = Graph(vertices)
     
@@ -214,7 +278,7 @@ if __name__ == '__main__':
     for num, comp in components.items():
         print(num, comp)
         print(len(comp))
-    '''
+    
     # -------------------------------------------------
 
     pix.write()
@@ -225,8 +289,3 @@ if __name__ == '__main__':
     # pix.write()
     
     
-    
-        
-        
-    
-
