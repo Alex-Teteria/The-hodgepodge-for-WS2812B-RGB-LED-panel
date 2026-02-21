@@ -1,6 +1,11 @@
 # The hodgepodge for WS2812B RGB LED panel
 Some miscellaneous visualizations displaying on a WS2812B RGB LED panel using MicroPython.
 
+# Візуалізації 
+* [🌡Maze](./apps/maze/README.md)
+* [📂 Бібліотеки](./lib/README.md)
+
+
 ## Content  
 
 | File | Contain | Purpose |
