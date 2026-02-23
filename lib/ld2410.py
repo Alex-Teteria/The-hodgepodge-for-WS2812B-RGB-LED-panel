@@ -1,32 +1,15 @@
-# HLK-LD2410 (Microwave-based human/object presence sensor) Tool
-# rev 1 - shabaz - May 2023
-# Example data report in Basic mode:
-# hex: f4 f3 f2 f1 0d 00 02 aa 03 4f 00 64 4c 00 64 32 00 55 00 f8 f7 f6 f5
-# bytes 0-3 are the header, always 0xf4, 0xf3, 0xf2, 0xf1
-# bytes 4-5 are the frame length, always 0x0d, 0x00 for Basic mode
-# byte 6 is the report type, always 0x02 for Basic mode, or 0x01 for Engineering mode
-# byte 7 is the report head, always 0xaa
-# byte 8 is the state, 0x00 = no target, 0x01 = moving target, 0x02 = stationary target, 0x03 = combined target
-# bytes 9-10 are the moving target distance in cm, little endian
-# byte 11 is the moving target energy
-# bytes 12-13 are the stationary target distance in cm, little endian
-# byte 14 is the stationary target energy
-# bytes 15-16 are the detection distance in cm, little endian
+# HLK-LD2410 (Microwave-based human/object presence sensor)
+# Author: Alex Teteria
+# v1.0
+# 23.02.2026
+# Implemented and tested on Pi Pico with RP2040
+# Released under the MIT license
 
-from machine import Pin, UART
+from machine import Pin
 import utime
 
-# board LED on the Pi Pico is 25
-# board LED on the Pico EuroCard is 22
-boardled = Pin(25, Pin.OUT)
-
-ser = UART(1, baudrate = 256000, tx=Pin(8), rx=Pin(9), timeout = 1)
-serial_status = False
-HEADER = bytes([0xfd, 0xfc, 0xfb, 0xfa])
-TERMINATOR = bytes([0x04, 0x03, 0x02, 0x01])
-NULLDATA = bytes([])
-REPORT_HEADER = bytes([0xf4, 0xf3, 0xf2, 0xf1])
-REPORT_TERMINATOR = bytes([0xf8, 0xf7, 0xf6, 0xf5])
+REPORT_HEADER = b"\xf4\xf3\xf2\xf1"
+REPORT_TERMINATOR = b"\xf8\xf7\xf6\xf5"
 
 STATE_NO_TARGET = 0
 STATE_MOVING_TARGET = 1
@@ -34,150 +17,166 @@ STATE_STATIONARY_TARGET = 2
 STATE_COMBINED_TARGET = 3
 TARGET_NAME = ["no_target", "moving_target", "stationary_target", "combined_target"]
 
-meas = {
-    "state": STATE_NO_TARGET,
-    "moving_distance": 0,
-    "moving_energy": 0,
-    "stationary_distance": 0,
-    "stationary_energy": 0,
-    "detection_distance": 0 }
+# Константи командного протоколу (якщо ще не додавали)
+CMD_HEADER = b"\xfd\xfc\xfb\xfa"
+CMD_TERMINATOR = b"\x04\x03\x02\x01"
 
-def print_bytes(data):
-    if not data or not len(data):
-        print("<no data>")
-        return
-    
-    text = f"hex: {data[0]:02x}"
-    for i in range(1, len(data)):
-        text = text + f" {data[i]:02x}"
-    print(text)
+class LD2410:
+    def __init__(self, uart, *, led_pin=None, flush_on_read=False):
+        """
+        uart: вже налаштований machine.UART(...)
+        led_pin: опційно Pin номер для індикації
+        flush_on_read: чи чистити буфер перед читанням кадру (інколи корисно, інколи шкодить)
+        """
+        self.uart = uart
+        self.flush_on_read = flush_on_read
+        self.led = Pin(led_pin, Pin.OUT) if led_pin is not None else None
 
-def send_command(cmd, data=NULLDATA, response_expected=True):
-    cmd_data_len = bytes([len(cmd) + len(data), 0x00])
-    frame = HEADER + cmd_data_len + cmd + data + TERMINATOR
-    ser.write(frame)
-    if response_expected:
-        response = ser.read()
-    else:
-        response = NULLDATA
-    return response
+        self.meas = {
+            "state": STATE_NO_TARGET,
+            "moving_distance": 0,
+            "moving_energy": 0,
+            "stationary_distance": 0,
+            "stationary_energy": 0,
+            "detection_distance": 0,
+        }
 
-def enable_config():
-    response = send_command(bytes([0xff, 0x00]), bytes([0x01, 0x00]));
-    print_bytes(response)
+    @staticmethod
+    def _print_bytes(data):
+        if not data:
+            print("<no data>")
+            return
+        print("hex:", " ".join("{:02x}".format(b) for b in data))
 
-def end_config():
-    response = send_command(bytes([0xfe, 0x00]), response_expected=False);
+    def _serial_flush(self):
+        while self.uart.any():
+            self.uart.read()
 
-def read_firmware_version():
-    response = send_command(bytes([0xa0, 0x00]));
-    print_bytes(response)
+    def _read_exact(self, n, timeout_ms=100):
+        start = utime.ticks_ms()
+        buf = bytearray()
+        while len(buf) < n:
+            if utime.ticks_diff(utime.ticks_ms(), start) > timeout_ms:
+                return None
+            chunk = self.uart.read(n - len(buf))
+            if chunk:
+                buf.extend(chunk)
+            else:
+                utime.sleep_ms(1)
+        return bytes(buf)
 
-def enable_engineering():
-    response = send_command(bytes([0x62, 0x00]));
-    print_bytes(response)
+    def _find_header(self):
+        window = bytearray()
+        while True:
+            b = self.uart.read(1)
+            if not b:
+                return False
+            window += b
+            if len(window) > 4:
+                window = window[-4:]
+            if bytes(window) == REPORT_HEADER:
+                return True
 
-def end_engineering():
-    response = send_command(bytes([0x63, 0x00]));
-    print_bytes(response)
-
-def read_serial_buffer():
-    response = ser.read()
-    print_bytes(response)
-    return response
-
-def print_meas():
-    print(f"state: {TARGET_NAME[meas['state']]}")
-    print(f"moving distance: {meas['moving_distance']}")
-    print(f"moving energy: {meas['moving_energy']}")
-    print(f"stationary distance: {meas['stationary_distance']}")
-    print(f"stationary energy: {meas['stationary_energy']}")
-    print(f"detection distance: {meas['detection_distance']}")
-
-def parse_report(data, print_en=False):
-    global meas
-    # sanity checks
-    if len(data) < 23:
-        print(f"error, frame length {data} is too short")
-        return
-    if data[0:4] != REPORT_HEADER:
-        print(f"error, frame header is incorrect")
-        return
-    # Check if data[4] (frame length) is valid. It must be 0x0d or 0x23
-    # depending on if we are in basic mode or engineering mode
-    if data[4] != 0x0d and data[4] != 0x23:
-        print(f"error, frame length is incorrect")
-        return
-    # data[7] must be report 'head' value 0xaa
-    if data[7] != 0xaa:
-        print(f"error, frame report head value is incorrect")
-        return
-    # sanity checks passed. Store the sensor data in meas
-    meas["state"] = data[8]
-    meas["moving_distance"] = data[9] + (data[10] << 8)
-    meas["moving_energy"] = data[11]
-    meas["stationary_distance"] = data[12] + (data[13] << 8)
-    meas["stationary_energy"] = data[14]
-    meas["detection_distance"] = data[15] + (data[16] << 8)
-    # print the data
-    if print_en:
-        print_meas()
-
-def read_serial_until(identifier):
-    content = bytes([])
-    while len(identifier) > 0:
-        v = ser.read(1)
-        if v == None:
-            # timeout
+    def _parse_report_basic(self, frame):
+        # frame очікується повний, з заголовком і термінатором
+        if len(frame) < 23:
             return None
-            break
-        if v[0] == identifier[0]:
-            content = content + v[0:1]
-            identifier = identifier[1:len(identifier)]
+        if frame[0:4] != REPORT_HEADER:
+            return None
+        if frame[-4:] != REPORT_TERMINATOR:
+            return None
+        if frame[7] != 0xAA:
+            return None
+
+        self.meas["state"] = frame[8]
+        self.meas["moving_distance"] = frame[9] + (frame[10] << 8)
+        self.meas["moving_energy"] = frame[11]
+        self.meas["stationary_distance"] = frame[12] + (frame[13] << 8)
+        self.meas["stationary_energy"] = frame[14]
+        self.meas["detection_distance"] = frame[15] + (frame[16] << 8)
+        return self.meas
+
+    def read_report(self, *, print_hex=False):
+        """
+        Читає один report кадр (basic/eng за довжиною).
+        Повертає словник meas або None.
+        """
+        if self.flush_on_read:
+            self._serial_flush()
+
+        if not self._find_header():
+            return None
+
+        # length (2 bytes, little-endian)
+        ln = self._read_exact(2, timeout_ms=50)
+        if not ln:
+            return None
+        payload_len = ln[0] + (ln[1] << 8)
+
+        rest = self._read_exact(payload_len + 4, timeout_ms=150)  # + terminator
+        if not rest:
+            return None
+
+        frame = REPORT_HEADER + ln + rest
+
+        if print_hex:
+            self._print_bytes(frame)
+
+        # Basic кадр зазвичай має payload_len == 0x0d (13)
+        # Engineering може бути 0x23 (35) і довший кадр треба парсити окремо
+        if payload_len == 0x0d:
+            m = self._parse_report_basic(frame)
         else:
-            content = bytes([])
-    return content
+            # поки що просто повернемо None або можна зберегти raw frame
+            m = None
 
-def serial_flush():
-    dummy = ser.read()
-    return dummy
+        if self.led is not None:
+            if m and (m["state"] in (STATE_MOVING_TARGET, STATE_COMBINED_TARGET)):
+                self.led.value(1)
+            else:
+                self.led.value(0)
 
-def read_serial_frame(print_en=True):
-    # dummy read to flush out the read buffer:
-    serial_flush()
-    utime.sleep_ms(100)
-    # keep reading to see a header arrive:
-    header = read_serial_until(REPORT_HEADER)
-    if header == None:
-        return None
-    # read the rest of the frame:
-    response = ser.read(23-4)
-    if response == None:
-        return None
-    response = header + response
-    if response[-4:] != REPORT_TERMINATOR:
-        # error, packet seems incorrect
-        return None
-    if print_en:
-        print_bytes(response)
-    parse_report(response, print_en)
-    #return response
-    return meas
+        return m
+    
+    def probe(self, sleep_ms=60):
+        # flush (найпростіший)
+        while self.uart.any():
+            self.uart.read()
 
+        # команда "read firmware": A0 00
+        frame = CMD_HEADER + b"\x02\x00" + b"\xA0\x00" + CMD_TERMINATOR
+        self.uart.write(frame)
 
-def run_forever():
-    while True:
-        read_serial_frame()
-        
-        if meas['state'] == STATE_MOVING_TARGET or meas['state'] == STATE_COMBINED_TARGET:
-            boardled.value(1)
-        else:
-            boardled.value(0)
-            
+        utime.sleep_ms(sleep_ms)
+        data = self.uart.read()
 
+        if not data:
+            return False
 
-
-# Press the green button in the gutter to run the script.
+        # дуже проста перевірка "щось схоже на відповідь"
+        i = data.find(CMD_HEADER)
+        if i < 0:
+            return False
+        j = data.find(CMD_TERMINATOR, i + 4)
+        return j >= 0
+    
+    
 if __name__ == '__main__':
-    read_firmware_version()
+    from machine import UART, Pin
+    import time
 
+    # ТУТ налаштовуємо інтерфейс:
+    uart = UART(1, baudrate=256000, tx=Pin(8), rx=Pin(9), timeout=20)
+
+    sensor = LD2410(uart, led_pin=25, flush_on_read=False)
+    
+    if not sensor.probe():
+        raise RuntimeError("LD2410 не відповідає (не підключено/не той UART/піні/baud)")
+    print("LD2410 підключено")
+    
+    while True:
+        m = sensor.read_report(print_hex=False)
+        if m:
+            print(m)   # або ваша логіка
+        time.sleep_ms(50)
+    
