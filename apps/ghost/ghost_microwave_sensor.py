@@ -5,8 +5,8 @@
 # was used to measure the distance.
 # -----------------------------------------------------------------------
 # Author: Alex Teteria
-# v2.0
-# 23.02.2026
+# v2.1
+# 24.02.2026
 # Implemented and tested on Pi Pico with RP2040
 # Released under the MIT license
 import neopixel, random, time
@@ -25,7 +25,7 @@ m = 16 # number of col
 red = 16, 0, 0
 blue = 0, 0, 24
 
-# colors from red (min dist) to blue (max dist)
+# colors body from red (min dist) to blue (max dist)
 colors = ((16, 0, 0), (15, 1, 0), (14, 2, 0), (13, 3, 0),
           (12, 4, 0), (12, 5, 0), (12, 6, 0), (12, 7, 0),
           (12, 8, 0), (11, 9, 0), (10, 10, 0), (9, 11, 0),
@@ -37,21 +37,20 @@ colors = ((16, 0, 0), (15, 1, 0), (14, 2, 0), (13, 3, 0),
           (0, 4, 20), (0, 2, 22), (0, 0, 24)
           )
 
-boardled = Pin(25, Pin.OUT)
 np = neopixel.NeoPixel(Pin(20), n * m)
 ghost = Ghost(np)
 direction = ('ahead', 'up', 'down', 'right', 'left')
 
-# init of the distance
-if not sensor.probe():
-    dist = 800
-else:
-    dist = 30
+# init of the distance 
+sensor_ok = sensor.probe()
+dist = 30 if sensor_ok else 800
 
 # при необхідності — замінити поріг 100 на 60..80
 ENERGY_TRIGGER = 100
 
 def get_colors():
+    # colors[i]: колір тіла (близько=red → далеко=blue)
+    # pupils_color: колір зіниць (близько=blue, далеко=red)
     # distance limits in sm
     limits = (30, 39, 40, 42, 44, 46, 50, 56,
               64, 66, 69, 73, 78, 86, 95, 97,
@@ -62,9 +61,9 @@ def get_colors():
 
     for i, limit in enumerate(limits):
         if dist <= limit:
-            color_2 = blue if i < 7 else red
-            return colors[i], color_2
-    return blue, red   
+            pupils_color = blue if i < 7 else red
+            return colors[i], pupils_color
+    return blue, red
 
 def get_speed(dist):
     # distance limits in sm
@@ -78,19 +77,25 @@ def get_speed(dist):
 def get_dist(sensor):
     global dist
     while True:
-        meas = sensor.read_report(print_hex=False)
-        if meas is None:
+        try:
+            meas = sensor.read_report(print_hex=False)
+            if meas is None:
+                time.sleep_ms(20)
+                continue
+
+            if meas.get("moving_energy", 0) >= ENERGY_TRIGGER:
+                dist = meas.get("detection_distance", dist)
+
             time.sleep_ms(20)
-            continue
 
-        if meas.get("moving_energy", 0) >= ENERGY_TRIGGER:
-            dist = meas.get("detection_distance", dist)
-
-        time.sleep_ms(20)
-
+        except Exception:
+            # будь-яка апаратна/протокольна аномалія -> потік не зупиняється
+            time.sleep_ms(200)
+            
+            
 def main_run():
-    body_color, eyes_color = get_colors()
-    ghost.look(random.choice(direction), body_color, eyes_color)
+    body_color, pupils_color = get_colors()
+    ghost.look(random.choice(direction), body_color, pupils_color)
     time.sleep_ms(get_speed(dist))
     
 def clean_up():
@@ -103,7 +108,7 @@ def clean_up():
 if __name__ == '__main__':
     
     # measuring the distance in the second thread
-    if sensor.probe():
+    if sensor_ok:
         _thread.start_new_thread(get_dist, (sensor,))
     
     while True:
