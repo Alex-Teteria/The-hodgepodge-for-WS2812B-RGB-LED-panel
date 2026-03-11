@@ -16,6 +16,8 @@ Audio spectrum is visualized as colored concentric rectangles.
 ---
 
 Обчислення спектра аудіосигналу та відображення його на RGB LED-матриці **WS2812B 16×16** (NeoPixel) у вигляді концентричних квадратів, де розмір відповідає рівню сигнала, а колір — спектральним складовим. 
+### Demo
+https://youtu.be/BAor3J7vFgI
 
 ---
 
@@ -276,3 +278,4 @@ FPS ≈ 1 / T_frame
 
 - Licensed under MIT.
 - **kissFFT**: This project uses the [kissFFT](https://github.com/mborgerding/kissfft) library by Mark Borgerding, licensed under the **BSD 3-Clause License**.
+
